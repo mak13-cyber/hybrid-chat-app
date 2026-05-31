@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hybrid Chat</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{--bg:#0f1117;--panel:#191c28;--line:rgba(255,255,255,.08);--text:#eef1ff;--muted:#98a1b3;--accent:#6d5efc;--accent2:#ec4aa5;--good:#3cb371}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Inter,Arial,sans-serif;background:radial-gradient(circle at top,#18233b 0,#0f1117 45%,#090a0d 100%);color:var(--text);height:100vh;overflow:hidden}
+    .hidden{display:none!important}
+    .screen{min-height:100vh;display:grid;place-items:center;padding:20px}
+    .card,.panel,.modal-card{background:rgba(25,28,40,.92);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(18px);box-shadow:0 20px 60px rgba(0,0,0,.4)}
+    .card{width:min(460px,92vw);padding:28px}
+    .card h1{font-size:32px;margin-bottom:8px}
+    .card p,.muted{color:var(--muted)}
+    .form{display:grid;gap:10px;margin-top:18px}
+    .form input,.top-search,.composer input,.filter,.modal-card input{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);outline:none;font-size:15px}
+    .btn,.send,.icon-btn,.head-actions button,.modal-actions button{border:0;cursor:pointer}
+    .btn,.send,.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-weight:800}
+    .btn{padding:13px 14px;border-radius:12px}
+    .app{height:100vh;display:grid;grid-template-columns:76px 280px 1fr 260px;gap:10px;padding:10px}
+    .rail,.left,.chat,.right{background:rgba(25,28,40,.92);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+    .rail{display:flex;flex-direction:column;align-items:center;gap:14px;padding:14px 10px}
+    .server{width:52px;height:52px;border-radius:18px;display:grid;place-items:center;background:rgba(255,255,255,.06);color:#fff;font-weight:800;cursor:pointer;transition:.2s ease;user-select:none}
+    .server:hover,.server.active{background:linear-gradient(135deg,var(--accent),var(--accent2))}
+    .server.add{color:var(--good);font-size:22px}
+    .left,.right{padding:16px;display:flex;flex-direction:column;gap:16px}
+    .title h2{font-size:22px;margin-bottom:4px}
+    .section h4,.members-head h3{font-size:12px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em}
+    .chan{padding:12px 14px;border-radius:12px;color:var(--muted);cursor:pointer;transition:.2s ease;display:flex;align-items:center;justify-content:space-between}
+    .chan:hover,.chan.active{background:rgba(109,94,252,.2);color:#fff}
+    .user{margin-top:auto;padding:14px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.05)}
+    .user strong{display:block;margin-bottom:4px}
+    .chat{display:flex;flex-direction:column}
+    .head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .head h2{font-size:24px}
+    .head-actions{display:flex;align-items:center;gap:10px}
+    .head-actions button,.icon-btn{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.06);color:#fff}
+    .head-actions button:hover,.icon-btn:hover,.ghost-btn:hover{background:rgba(255,255,255,.1)}
+    .top-search{width:260px}
+    .messages{flex:1;overflow:auto;padding:18px 0;display:flex;flex-direction:column;gap:12px}
+    .welcome{margin:auto;text-align:center;color:var(--muted)}
+    .msg{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:14px}
+    .msg:hover{background:rgba(255,255,255,.03)}
+    .avatar{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),var(--accent2));font-weight:800;flex:0 0 auto}
+    .bubble{max-width:780px}
+    .bubble strong{display:block;margin-bottom:4px}
+    .time{color:var(--muted);font-size:12px;margin-left:8px}
+    .composer{padding:14px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center}
+    .composer input{flex:1}
+    .send{width:58px;height:58px;border-radius:16px;color:#fff;font-size:18px}
+    .members-head{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+    .role{margin-bottom:20px}
+    .role h4{color:var(--muted);margin-bottom:12px;font-size:13px;text-transform:uppercase}
+    .member{display:flex;gap:12px;align-items:center;padding:10px 0}
+    .dot{width:10px;height:10px;border-radius:50%;background:var(--good);flex:0 0 auto}
+    .member p{color:var(--muted);font-size:13px}
+    .mini-list{display:grid;gap:8px}
+    .mini-item{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.06)}
+    dialog{border:none;border-radius:18px;padding:0;background:transparent;color:#fff;width:min(420px,92vw)}
+    dialog::backdrop{background:rgba(0,0,0,.72)}
+    dialog[open]{display:block}
+    .modal-card{padding:22px}
+    .modal-card h3{margin-bottom:8px}
+    .modal-actions{display:flex;gap:10px;margin-top:14px}
+    .modal-actions button{flex:1;padding:12px 14px;border-radius:12px;color:#fff;font-weight:800}
+    .secondary{background:rgba(255,255,255,.08)}
+    .ai-log{margin-top:12px;max-height:250px;overflow:auto;display:grid;gap:10px}
+    .ai-bubble{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.06)}
+    @media (max-width:1100px){.app{grid-template-columns:76px 250px 1fr}.right{display:none}}
+    @media (max-width:760px){.app{grid-template-columns:1fr}.rail,.left{display:none}.top-search{display:none}}
+  </style>
+</head>
+<body>
+  <div id="loginScreen" class="screen">
+    <div class="card">
+      <h1>Hybrid Chat</h1>
+      <p>Discord-style chat with Supabase realtime</p>
+      <form id="loginForm" class="form">
+        <input id="username" type="text" placeholder="Enter your name" autocomplete="off" />
+        <input id="password" type="password" placeholder="Enter any password" />
+        <button type="submit">Sign In</button>
+      </form>
+      <p class="muted" style="margin-top:12px">Demo login only. Any name and password will work.</p>
+    </div>
+  </div>
+
+  <div id="appScreen" class="app hidden">
+    <aside class="rail panel">
+      <div class="server active" data-server="home">🏠</div>
+      <div class="server" data-server="team">TC</div>
+      <div class="server" data-server="dev">GD</div>
+      <div class="server add" id="createServerBtn">+</div>
+    </aside>
+
+    <aside class="left panel">
+      <div class="title">
+        <h2 id="workspaceName">Team Workspace</h2>
+        <p class="muted"><span style="color:var(--good)">●</span> <span id="onlineCount">0</span> online</p>
+      </div>
+      <div class="section">
+        <h4>Text Channels</h4>
+        <div class="chan active" data-channel="general"><span># general</span><span></span></div>
+        <div class="chan" data-channel="announcements"><span># announcements</span><span></span></div>
+        <div class="chan" data-channel="projects"><span># projects</span><span></span></div>
+      </div>
+      <div class="section">
+        <h4>Spaces</h4>
+        <div class="chan" data-channel="product"><span>Product Team</span><span></span></div>
+        <div class="chan" data-channel="engineering"><span>Engineering</span><span></span></div>
+      </div>
+      <div class="user">
+        <strong id="meName">Guest</strong>
+        <p class="muted"><span style="color:var(--good)">●</span> Online</p>
+      </div>
+    </aside>
+
+    <main class="chat panel">
+      <div class="head">
+        <div>
+          <h2 id="channelName"># general</h2>
+          <p id="channelDesc" class="muted">Main discussion channel</p>
+        </div>
+        <div class="head-actions">
+          <input class="top-search" placeholder="Search messages..." />
+          <button id="addFriendBtn" title="Add Friend">👥</button>
+          <button id="aiBtn" title="AI">🤖</button>
+          <button id="settingsBtn" title="Settings">⚙️</button>
+        </div>
+      </div>
+      <div id="messages" class="messages"></div>
+      <div class="composer">
+        <button class="icon-btn" id="attachBtn" title="Attach">📎</button>
+        <input id="messageInput" type="text" placeholder="Message #general" />
+        <button class="icon-btn" id="emojiBtn" title="Emoji">😊</button>
+        <button id="sendBtn" class="send" title="Send">➤</button>
+      </div>
+    </main>
+
+    <aside class="right panel">
+      <div class="members-head">
+        <h3>Members</h3>
+        <input class="filter" placeholder="Filter..." />
+      </div>
+      <div class="role">
+        <h4>Owner — 1</h4>
+        <div class="member"><span class="dot"></span><div><strong id="ownerName">Guest</strong><p>Building something awesome</p></div></div>
+      </div>
+      <div class="role">
+        <h4>Friends</h4>
+        <div id="friendList" class="mini-list"></div>
+      </div>
+    </aside>
+  </div>
+
+  <dialog id="friendDialog"><div class="modal-card"><h3>Add Friend</h3><p class="muted">Type a name and add it to your friends list.</p><form id="friendForm" method="dialog"><input id="friendName" type="text" placeholder="Friend name" required /><div class="modal-actions"><button type="submit" class="primary">Add</button><button type="button" id="cancelFriendBtn" class="secondary">Cancel</button></div></form></div></dialog>
+  <dialog id="simpleDialog"><div class="modal-card"><h3 id="dialogTitle">Info</h3><p id="dialogText" class="muted" style="margin-top:8px"></p><div class="modal-actions"><button type="button" id="closeSimpleDialog" class="primary">OK</button></div></div></dialog>
+  <dialog id="aiDialog"><div class="modal-card"><h3>AI Chat Bot</h3><p class="muted">Ask about the app or general questions.</p><input id="aiInput" type="text" placeholder="Ask something..." /><div class="modal-actions"><button type="button" id="sendAiBtn" class="primary">Ask</button><button type="button" id="closeAiBtn" class="secondary">Close</button></div><div id="aiLog" class="ai-log"></div></div></dialog>
+  <dialog id="settingsDialog"><div class="modal-card"><h3>Settings</h3><p class="muted">This button now works.</p><div class="modal-actions"><button type="button" id="themeBtn" class="primary">Toggle Theme</button><button type="button" id="closeSettingsBtn" class="secondary">Close</button></div></div></dialog>
+
+  <script>
+    const SUPABASE_URL = 'https://snpfdaygntgahfvrzcur.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_-DGHurJ6Q1Xdu5YIApzlpg_BObdJhUZ';
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const loginScreen = document.getElementById('loginScreen');
+    const appScreen = document.getElementById('appScreen');
+    const loginForm = document.getElementById('loginForm');
+    const username = document.getElementById('username');
+    const password = document.getElementById('password');
+    const meName = document.getElementById('meName');
+    const ownerName = document.getElementById('ownerName');
+    const onlineCount = document.getElementById('onlineCount');
+    const messages = document.getElementById('messages');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const addFriendBtn = document.getElementById('addFriendBtn');
+    const aiBtn = document.getElementById('aiBtn');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const attachBtn = document.getElementById('attachBtn');
+    const emojiBtn = document.getElementById('emojiBtn');
+    const createServerBtn = document.getElementById('createServerBtn');
+    const friendDialog = document.getElementById('friendDialog');
+    const friendForm = document.getElementById('friendForm');
+    const friendName = document.getElementById('friendName');
+    const cancelFriendBtn = document.getElementById('cancelFriendBtn');
+    const friendList = document.getElementById('friendList');
+    const simpleDialog = document.getElementById('simpleDialog');
+    const dialogTitle = document.getElementById('dialogTitle');
+    const dialogText = document.getElementById('dialogText');
+    const closeSimpleDialog = document.getElementById('closeSimpleDialog');
+    const channelName = document.getElementById('channelName');
+    const channelDesc = document.getElementById('channelDesc');
+    const workspaceName = document.getElementById('workspaceName');
+    const aiDialog = document.getElementById('aiDialog');
+    const aiInput = document.getElementById('aiInput');
+    const sendAiBtn = document.getElementById('sendAiBtn');
+    const closeAiBtn = document.getElementById('closeAiBtn');
+    const aiLog = document.getElementById('aiLog');
+    const settingsDialog = document.getElementById('settingsDialog');
+    const themeBtn = document.getElementById('themeBtn');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    let currentUser = 'Guest';
+    let currentChannel = 'general';
+    let friends = ['Alice', 'Bob'];
+    let darkAlt = false;
+    let presence = new Set();
+    let channelSub = null;
+    const meta = {general:['# general','Main discussion channel'],announcements:['# announcements','Official updates'],projects:['# projects','Project planning'],product:['Product Team','Google Chat-style shared space'],engineering:['Engineering','Dev chat and technical discussion']};
+    function showSimple(title, text){dialogTitle.textContent = title; dialogText.textContent = text; simpleDialog.showModal();}
+    function renderFriends(){friendList.innerHTML=''; friends.forEach(name => { const row=document.createElement('div'); row.className='mini-item'; row.innerHTML=`<strong>${escapeHTML(name)}</strong><div class="muted">Friend</div>`; friendList.appendChild(row); });}
+    function renderOnline(){onlineCount.textContent = String(Math.max(presence.size,1));}
+    function escapeHTML(s){return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');}
+    function addMessageRow(user, text, time){ const row=document.createElement('div'); row.className='msg'; row.innerHTML=`<div class="avatar">${user[0].toUpperCase()}</div><div class="bubble"><strong>${escapeHTML(user)}<span class="time">${time}</span></strong><div>${escapeHTML(text)}</div></div>`; messages.appendChild(row); messages.scrollTop = messages.scrollHeight; }
+    function renderWelcome(channel){ messages.innerHTML=''; const empty=document.createElement('div'); empty.className='welcome'; empty.innerHTML=`<h1>${meta[channel]?.[0]||channel}</h1><p>${meta[channel]?.[1]||''}</p>`; messages.appendChild(empty); }
+    async function loadMessages(channel){ messages.innerHTML=''; const { data, error } = await sb.from('messages').select('*').eq('channel', channel).order('created_at', { ascending: true }).limit(200); if (error) { renderWelcome(channel); return; } if (!data.length) { renderWelcome(channel); return; } data.forEach(m => addMessageRow(m.username, m.content, new Date(m.created_at).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}))); }
+    async function sendMessage(){ const text = messageInput.value.trim(); if (!text) return; const payload = { channel: currentChannel, username: currentUser, content: text }; const { error } = await sb.from('messages').insert(payload); if (error) { showSimple('Send failed', error.message); return; } messageInput.value = ''; }
+    function aiReply(q){ const m=q.toLowerCase(); if(m.includes('hello')||m.includes('hi')) return 'Hello! I am your AI assistant.'; if(m.includes('settings')) return 'The settings button opens this panel now.'; if(m.includes('friend')) return 'Use the Add Friend button to open the friend modal.'; if(m.includes('channel')) return 'Click a channel on the left to switch conversations.'; return 'I can help with the app, buttons, and basic questions.'; }
+    function subscribeChannel(channel){ if (channelSub) sb.removeChannel(channelSub); channelSub = sb.channel('messages-'+channel).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `channel=eq.${channel}` }, payload => { const m = payload.new; addMessageRow(m.username, m.content, new Date(m.created_at).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})); }).subscribe(); }
+    loginForm.addEventListener('submit', async e => { e.preventDefault(); if(!username.value.trim() || !password.value.trim()){ showSimple('Sign in', 'Please enter a username and a password.'); return; } currentUser = username.value.trim(); meName.textContent = currentUser; ownerName.textContent = currentUser; loginScreen.classList.add('hidden'); appScreen.classList.remove('hidden'); presence.add(currentUser); renderOnline(); renderFriends(); await loadMessages(currentChannel); subscribeChannel(currentChannel); });
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); sendMessage(); } });
+    addFriendBtn.addEventListener('click', () => { friendName.value=''; friendDialog.showModal(); setTimeout(() => friendName.focus(), 0); });
+    cancelFriendBtn.addEventListener('click', () => friendDialog.close());
+    friendForm.addEventListener('submit', e => { e.preventDefault(); const name = friendName.value.trim(); if(!name) return; if(!friends.includes(name)) friends.push(name); renderFriends(); friendDialog.close(); showSimple('Friend added', `${name} was added to your friends list.`); });
+    aiBtn.addEventListener('click', () => { aiDialog.showModal(); setTimeout(() => aiInput.focus(), 0); });
+    sendAiBtn.addEventListener('click', () => { const q = aiInput.value.trim(); if(!q) return; const userBubble=document.createElement('div'); userBubble.className='ai-bubble'; userBubble.textContent='You: ' + q; const botBubble=document.createElement('div'); botBubble.className='ai-bubble'; botBubble.textContent='AI: ' + aiReply(q); aiLog.appendChild(userBubble); aiLog.appendChild(botBubble); aiInput.value=''; aiLog.scrollTop = aiLog.scrollHeight; });
+    aiInput.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); sendAiBtn.click(); } });
+    closeAiBtn.addEventListener('click', () => aiDialog.close());
+    settingsBtn.addEventListener('click', () => settingsDialog.showModal());
+    closeSettingsBtn.addEventListener('click', () => settingsDialog.close());
+    themeBtn.addEventListener('click', () => { darkAlt = !darkAlt; document.body.style.background = darkAlt ? 'radial-gradient(circle at top,#3a1f4d 0,#0f1117 45%,#090a0d 100%)' : 'radial-gradient(circle at top,#18233b 0,#0f1117 45%,#090a0d 100%)'; showSimple('Theme', 'Theme changed.'); });
+    attachBtn.addEventListener('click', () => showSimple('Attach file', 'File upload can be added with a backend later.'));
+    emojiBtn.addEventListener('click', () => showSimple('Emoji', 'Emoji picker can be added next.'));
+    createServerBtn.addEventListener('click', () => showSimple('Create server', 'Server creation is a demo action in this single-file version.'));
+    document.querySelectorAll('.server[data-server]').forEach(s => s.addEventListener('click', () => { document.querySelectorAll('.server[data-server]').forEach(x => x.classList.remove('active')); s.classList.add('active'); if(s.dataset.server==='home') workspaceName.textContent='Team Workspace'; if(s.dataset.server==='team') workspaceName.textContent='Team Workspace'; if(s.dataset.server==='dev') workspaceName.textContent='Game Dev'; }));
+    document.querySelectorAll('.chan').forEach(ch => ch.addEventListener('click', async () => { document.querySelectorAll('.chan').forEach(x => x.classList.remove('active')); ch.classList.add('active'); currentChannel = ch.dataset.channel; const data = meta[currentChannel] || [currentChannel, '']; channelName.textContent = data[0]; channelDesc.textContent = data[1]; messageInput.placeholder = `Message ${data[0]}`; await loadMessages(currentChannel); subscribeChannel(currentChannel); }));
+    closeSimpleDialog.addEventListener('click', () => simpleDialog.close());
+    renderFriends(); renderOnline();
+  </script>
+</body>
+</html>
